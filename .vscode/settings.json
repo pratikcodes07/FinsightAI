@@ -1,0 +1,4 @@
+//change the default python interpreter path to the virtual environment of the system in use
+{
+    "python.defaultInterpreterPath": "/Users/pratiktiwari/Development/AI-Projects/FinSightAI/backend/venv/bin/python"
+}
