@@ -32,11 +32,19 @@ async def signup(
 
 
 @router.post("/login", response_model=AuthTokenPair, summary="Authenticate a user")
-async def login(_: AuthLoginRequest) -> AuthTokenPair:
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Authentication flow will be enabled after the identity tables and seed strategy are finalized.",
-    )
+async def login(
+    payload: AuthLoginRequest,
+    session: AsyncSession = Depends(get_db_session),
+    settings: Settings = SettingsDep,
+) -> AuthTokenPair:
+    service = AuthService(session, settings)
+    token_pair = await service.authenticate(payload)
+    if token_pair is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+    return token_pair
 
 
 @router.post("/refresh", response_model=AuthTokenPair, summary="Refresh an access token")

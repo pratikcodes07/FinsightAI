@@ -77,3 +77,63 @@ def test_signup_creates_user_and_returns_tokens(monkeypatch: pytest.MonkeyPatch)
         },
     )
     assert duplicate_response.status_code == 409
+
+
+def test_login_returns_tokens_for_valid_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_session = _FakeSession()
+
+    monkeypatch.setattr(auth_service_module, "UserRepository", _FakeUserRepository)
+
+    async def override_session() -> AsyncIterator[_FakeSession]:
+        yield fake_session
+
+    app = create_app()
+    app.dependency_overrides[api_deps.get_db_session] = override_session
+
+    client = TestClient(app)
+    signup_response = client.post(
+        "/api/v1/auth/signup",
+        json={
+            "email": "login.user@example.com",
+            "full_name": "Login User",
+            "password": "supersecret123",
+        },
+    )
+    assert signup_response.status_code == 201
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={
+            "email": "login.user@example.com",
+            "password": "supersecret123",
+        },
+    )
+
+    assert login_response.status_code == 200
+    body = login_response.json()
+    assert body["token_type"] == "bearer"
+    assert body["access_token"].count(".") == 2
+    assert body["refresh_token"].count(".") == 2
+
+
+def test_login_rejects_invalid_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_session = _FakeSession()
+
+    monkeypatch.setattr(auth_service_module, "UserRepository", _FakeUserRepository)
+
+    async def override_session() -> AsyncIterator[_FakeSession]:
+        yield fake_session
+
+    app = create_app()
+    app.dependency_overrides[api_deps.get_db_session] = override_session
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/v1/auth/login",
+        json={
+            "email": "missing.user@example.com",
+            "password": "supersecret123",
+        },
+    )
+
+    assert response.status_code == 401
