@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finsight_ai.core.config import Settings
+from finsight_ai.core.errors import ConflictError
 from finsight_ai.core.security import create_access_token, hash_password, verify_password
 from finsight_ai.models.user import User
 from finsight_ai.repositories.user_repository import UserRepository
@@ -19,6 +20,10 @@ class AuthService:
         self.users = UserRepository(session)
 
     async def register_user(self, payload: UserCreate) -> User:
+        existing_user = await self.users.get_by_email(payload.email)
+        if existing_user is not None:
+            raise ConflictError("A user with this email already exists")
+
         user = User(
             email=payload.email,
             full_name=payload.full_name,
@@ -28,13 +33,20 @@ class AuthService:
         await self.session.commit()
         return user
 
+    async def signup(self, payload: UserCreate) -> AuthTokenPair:
+        user = await self.register_user(payload)
+        return self._create_token_pair(str(user.id))
+
     async def authenticate(self, payload: AuthLoginRequest) -> AuthTokenPair | None:
         user = await self.users.get_by_email(payload.email)
         if user is None or not verify_password(payload.password, user.hashed_password):
             return None
 
-        access_token = create_access_token(str(user.id), self.settings)
-        refresh_token = self._create_refresh_token(str(user.id))
+        return self._create_token_pair(str(user.id))
+
+    def _create_token_pair(self, subject: str) -> AuthTokenPair:
+        access_token = create_access_token(subject, self.settings)
+        refresh_token = self._create_refresh_token(subject)
         return AuthTokenPair(access_token=access_token, refresh_token=refresh_token)
 
     def _create_refresh_token(self, subject: str) -> str:

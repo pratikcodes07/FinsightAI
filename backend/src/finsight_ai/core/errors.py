@@ -16,3 +16,8 @@ class NotFoundError(FinSightError):
 class ValidationError(FinSightError):
     def __init__(self, message: str = "Invalid request") -> None:
         super().__init__(message=message, code="validation_error")
+
+
+class ConflictError(FinSightError):
+    def __init__(self, message: str = "Resource already exists") -> None:
+        super().__init__(message=message, code="conflict")
